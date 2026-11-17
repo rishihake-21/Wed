@@ -64,7 +64,8 @@ export function Experience() {
         <SceneManager />
 
         {stage === 'journey' && <JourneyScroll />}
-        {DEV_FLAGS.showDebug && <Stats />}
+        {/* Mid-left, so the FPS panel doesn't cover the menu button (top left). */}
+        {DEV_FLAGS.showDebug && <Stats className="!left-2 !top-1/2" />}
       </Canvas>
     </div>
   );

@@ -11,13 +11,17 @@ const VIEWPORTS_PER_SCENE = 1;
 const SETTLE_TOLERANCE = 0.002;
 const SETTLE_TIMEOUT_MS = 3000;
 
+/** drei keeps the raw scroll position in a `scroll` ref that its damping chases; it isn't in the public type. */
+type ScrollWithRef = ReturnType<typeof useScroll> & { scroll?: { current: number } };
+
 /**
  * Copies the (already damped) scroll offset into master time: offset 0 → journeyFromT, offset 1 → 1.
- * Also carries out jumps: it moves the scroll container to the jump target, and meanwhile keeps
- * the `t` that jumpTo already set instead of replaying the damped sweep through every scene between.
+ * Also carries out jumps: it moves the scroll container to the jump target and pins drei's damped
+ * offset there, so `t` doesn't fly through the scenes in between. Until the offset has caught up
+ * it keeps the `t` that jumpTo already set.
  */
 function ScrollToT() {
-  const scroll = useScroll();
+  const scroll = useScroll() as ScrollWithRef;
   const handledJump = useRef(0);
   const settling = useRef<{ offset: number; deadline: number } | null>(null);
 
@@ -25,12 +29,19 @@ function ScrollToT() {
     const state = useAppStore.getState();
     const { journeyFromT, jump } = state;
     const span = 1 - journeyFromT;
+    const el = scroll.el;
 
     if (jump && jump.id !== handledJump.current) {
+      // Wait until the container is in the page and laid out. A jump applied any earlier would
+      // leave the scroll position at 0, and the next real scroll would snap back to the start.
+      const range = el.scrollHeight - el.clientHeight;
+      if (!el.isConnected || range <= 0) return;
+
       handledJump.current = jump.id;
       const offset = span > 0 ? clamp01((jump.t - journeyFromT) / span) : 0;
-      const el = scroll.el;
-      el.scrollTop = offset * (el.scrollHeight - el.clientHeight);
+      el.scrollTop = offset * range;
+      if (scroll.scroll) scroll.scroll.current = offset;
+      scroll.offset = offset;
       settling.current = { offset, deadline: performance.now() + SETTLE_TIMEOUT_MS };
     }
 

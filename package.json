@@ -7,19 +7,23 @@
     "dev": "vite",
     "dev:host": "vite --host",
     "typecheck": "tsc --noEmit",
-    "check": "node --experimental-strip-types --no-warnings scripts/check-layout.mjs && node --experimental-strip-types --no-warnings scripts/check-framing.mjs",
+    "check": "node --experimental-strip-types --no-warnings scripts/check-layout.mjs && node --experimental-strip-types --no-warnings scripts/check-framing.mjs && node --experimental-strip-types --no-warnings scripts/check-quality.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host"
   },
   "dependencies": {
     "@react-three/drei": "^9.117.0",
     "@react-three/fiber": "^8.17.10",
+    "detect-gpu": "^5.0.70",
+    "gsap": "^3.15.1",
+    "howler": "^2.2.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "three": "^0.170.0",
     "zustand": "^4.5.5"
   },
   "devDependencies": {
+    "@types/howler": "^2.2.13",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@types/three": "^0.170.0",

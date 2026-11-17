@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { DEV_FLAGS } from './devFlags';
-import { clamp01, sceneIndexAt } from './layout';
+import { clamp01, PART_A_END_T, sceneIndexAt, sceneStartT } from './layout';
+import { resolveQuality } from './quality';
 import type { Lang, QualityTier, Stage } from './types';
 
 const LANG_STORAGE_KEY = 'wed.lang';
@@ -29,10 +30,23 @@ function nextJump(prev: JumpRequest | null, t: number): JumpRequest {
   return { id: (prev?.id ?? 0) + 1, t };
 }
 
+/**
+ * Menu jumps land this far (in `t`) inside the target scene. Landing exactly on the boundary
+ * can round to the end of the previous scene: browsers snap scroll positions to whole pixels.
+ */
+const JUMP_NUDGE_T = 0.001;
+
 export interface AppState {
   language: Lang;
   muted: boolean;
+  /** The tier scenes read: `detectedQuality`, unless the guest flipped the Lite toggle. */
   quality: QualityTier;
+  /** What device detection chose (or the ?quality= override). */
+  detectedQuality: QualityTier;
+  /** Why detection chose it, for the dev overlay. */
+  qualityNote: string;
+  /** The guest's manual Lite choice: null = follow detection. */
+  liteOverride: boolean | null;
   reducedMotion: boolean;
   stage: Stage;
 
@@ -52,6 +66,9 @@ export interface AppState {
   toggleLanguage: () => void;
   setMuted: (muted: boolean) => void;
   setQuality: (quality: QualityTier) => void;
+  /** Called once by device detection; keeps a manual Lite choice intact. */
+  applyDetectedQuality: (tier: QualityTier, note: string) => void;
+  toggleLite: () => void;
   setReducedMotion: (reduced: boolean) => void;
   /** Entering 'journey' goes through startJourney(t), so scroll starts where the camera is. */
   setStage: (stage: Stage) => void;
@@ -60,10 +77,15 @@ export interface AppState {
   /** Enter scroll mode with scroll offset 0 mapped to `fromT`. The camera snaps there. */
   startJourney: (fromT?: number) => void;
   /**
-   * Move to master time `t` from anywhere (menu links, Skip). In journey mode it re-aims the
-   * scroll position and snaps the camera; before that it starts the journey at `t`.
+   * Move to master time `t` from anywhere. In journey mode it re-aims the scroll position and
+   * snaps the camera. From the gate or the intro it first starts the journey at the end of
+   * Part A (so everything in Part B stays reachable by scrolling), then jumps within it.
    */
   jumpTo: (t: number) => void;
+  /** Skip the intro: end Part A and hand over to scroll. */
+  skipIntro: () => void;
+  /** Menu link: jump to the start of scene `sceneIndex`, ending Part A if it is still playing. */
+  jumpToScene: (sceneIndex: number) => void;
 }
 
 /**
@@ -74,7 +96,10 @@ export interface AppState {
 export const useAppStore = create<AppState>()((set, get) => ({
   language: readStoredLanguage(),
   muted: false,
-  quality: DEV_FLAGS.forcedQuality ?? 'medium', // detect-gpu picks the real tier in Phase 2
+  quality: DEV_FLAGS.forcedQuality ?? 'medium', // replaced when device detection finishes
+  detectedQuality: DEV_FLAGS.forcedQuality ?? 'medium',
+  qualityNote: DEV_FLAGS.forcedQuality ? 'forced by ?quality=' : 'detecting…',
+  liteOverride: null,
   reducedMotion: prefersReducedMotion(),
   stage: DEV_FLAGS.startInJourney ? 'journey' : 'gate',
 
@@ -94,6 +119,12 @@ export const useAppStore = create<AppState>()((set, get) => ({
   toggleLanguage: () => get().setLanguage(get().language === 'mr' ? 'en' : 'mr'),
   setMuted: (muted) => set({ muted }),
   setQuality: (quality) => set({ quality }),
+  applyDetectedQuality: (detectedQuality, qualityNote) =>
+    set({ detectedQuality, qualityNote, quality: resolveQuality(detectedQuality, get().liteOverride) }),
+  toggleLite: () => {
+    const liteOverride = get().quality !== 'lite';
+    set({ liteOverride, quality: resolveQuality(get().detectedQuality, liteOverride) });
+  },
   setReducedMotion: (reducedMotion) => set({ reducedMotion }),
   setStage: (stage) => {
     if (stage === 'journey') get().startJourney(get().t);
@@ -116,13 +147,18 @@ export const useAppStore = create<AppState>()((set, get) => ({
     }));
   },
   jumpTo: (target) => {
-    const s = get();
-    if (s.stage !== 'journey') {
-      s.startJourney(target);
-      return;
+    const wanted = clamp01(target);
+    if (get().stage !== 'journey') {
+      get().startJourney(Math.min(wanted, PART_A_END_T));
+      if (wanted <= PART_A_END_T) return; // the journey already starts exactly there
     }
+    const s = get();
     // Scroll offset 0 is journeyFromT, so nothing earlier than that is reachable.
-    const t = Math.max(clamp01(target), s.journeyFromT);
+    const t = Math.max(wanted, s.journeyFromT);
     set({ t, activeScene: sceneIndexAt(t), jump: nextJump(s.jump, t) });
   },
+  skipIntro: () => {
+    if (get().stage === 'cinematic') get().startJourney(PART_A_END_T);
+  },
+  jumpToScene: (sceneIndex) => get().jumpTo(sceneStartT(sceneIndex) + JUMP_NUDGE_T),
 }));

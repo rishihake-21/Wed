@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { audioStatus } from '../audio/audioManager';
 import { mountedSceneIndices, SCENE_COUNT, SCENE_META } from '../core/layout';
 import { useAppStore } from '../core/store';
 import type { AppState } from '../core/store';
@@ -12,7 +13,9 @@ function format(s: AppState): string {
     `t        ${s.t.toFixed(4)}`,
     `scene    ${s.activeScene + 1}/${SCENE_COUNT} ${SCENE_META[s.activeScene].label}`,
     `mounted  [${mounted}]`,
-    `quality  ${s.quality}`,
+    `quality  ${s.quality} (detected ${s.detectedQuality}: ${s.qualityNote})`,
+    `motion   ${s.reducedMotion ? 'reduced' : 'full'}`,
+    `sound    ${s.muted ? 'muted' : 'on'} · ${audioStatus()}`,
   ].join('\n');
 }
 
@@ -28,13 +31,19 @@ export function DevOverlay() {
       if (ref.current) ref.current.textContent = format(s);
     };
     render(useAppStore.getState());
-    return useAppStore.subscribe(render);
+    const unsubscribe = useAppStore.subscribe(render);
+    // Audio state lives in Howler, not the store, so poll it a few times a second.
+    const poll = window.setInterval(() => render(useAppStore.getState()), 250);
+    return () => {
+      unsubscribe();
+      window.clearInterval(poll);
+    };
   }, []);
 
   return (
     <pre
       ref={ref}
-      className="pointer-events-none absolute left-3 top-16 rounded bg-midnight/70 p-2 font-mono text-xs leading-snug text-cream/90"
+      className="pointer-events-none absolute left-3 top-16 max-w-[calc(100%-1.5rem)] whitespace-pre-wrap rounded bg-midnight/70 p-2 font-mono text-xs leading-snug text-cream/90"
     />
   );
 }

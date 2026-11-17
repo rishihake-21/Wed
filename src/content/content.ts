@@ -52,7 +52,9 @@ export type UiKey =
   | 'venue'
   | 'schedule'
   | 'rsvp'
-  | 'scrollHint';
+  | 'scrollHint'
+  | 'lite'
+  | 'loading';
 
 export interface WeddingContent {
   meta: {
@@ -199,5 +201,7 @@ export const content: WeddingContent = {
     schedule: { mr: 'कार्यक्रम', en: 'Schedule' },
     rsvp: { mr: 'उपस्थिती कळवा', en: 'RSVP' },
     scrollHint: { mr: 'पुढे जाण्यासाठी खाली स्क्रोल करा', en: 'Scroll to continue' },
+    lite: { mr: 'लाइट मोड', en: 'Lite mode' },
+    loading: { mr: 'लोड होत आहे…', en: 'Loading…' },
   },
 };
