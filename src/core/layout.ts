@@ -132,8 +132,12 @@ export function mountedSceneIndices(active: number): number[] {
 /** Camera travel per scene along z. Also the spacing between scene origins. */
 export const SEGMENT_LENGTH = 30;
 
-/** How far to the side of the camera path each scene's origin sits. Alternates left/right. */
-export const ROOM_SIDE_OFFSET = 6;
+/**
+ * How far to the side of the camera path each scene's origin sits. Alternates left/right.
+ * Kept small on purpose: on a portrait phone the view is only about 42° wide, so anything
+ * further to the side is never in frame. `npm run check` guards this.
+ */
+export const ROOM_SIDE_OFFSET = 4;
 
 // Placeholder waypoints: a gentle weave in x, and a height that rises toward the grove
 // and again toward the date lotus. Real scenes retune these.
@@ -163,4 +167,41 @@ export function tToPathU(t: number): number {
   const c = clamp01(t);
   const i = sceneIndexAt(c);
   return (i + sceneProgressAt(c, i)) / SCENE_COUNT;
+}
+
+// ---------------------------------------------------------------------------
+// Camera look and field of view (pure, so scripts/check-framing.mjs can use them)
+// ---------------------------------------------------------------------------
+
+/** How far ahead along the path the camera looks while gliding. */
+export const LOOK_AHEAD = 12;
+/** Height above a scene's origin that the gaze is drawn toward. */
+export const FOCUS_HEIGHT = 1.5;
+
+/** Peak share (0–1) of the gaze that is pulled from "straight ahead" toward the active scene. */
+const FOCUS_STRENGTH = 0.7;
+
+/**
+ * How strongly the gaze is drawn toward the active scene, by that scene's local progress.
+ * Zero at both ends of a scene, so the view is continuous across scene boundaries. It peaks
+ * a third of the way in, while the scene is still ahead of the camera, and has faded by the
+ * time the camera is abeam of it: turning toward something at your side is a fast head-turn.
+ */
+export function focusWeight(progress: number): number {
+  const p = clamp01(progress);
+  // p (1 - p)² peaks at p = 1/3 with value 4/27; 27/4 scales that peak to 1.
+  return FOCUS_STRENGTH * (27 / 4) * p * (1 - p) * (1 - p);
+}
+
+export const FOV_LANDSCAPE = 60;
+export const FOV_PORTRAIT = 80;
+
+/**
+ * Vertical field of view for a screen aspect ratio (width / height). A fixed 60° would leave
+ * a portrait phone only about 30° wide. This widens it from 60° at aspect 1 to 80° at
+ * aspect 0.5 and below, which is about 42° wide on a 390×844 phone.
+ */
+export function fovForAspect(aspect: number): number {
+  const k = clamp01((1 - aspect) / 0.5);
+  return FOV_LANDSCAPE + (FOV_PORTRAIT - FOV_LANDSCAPE) * k;
 }

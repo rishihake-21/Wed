@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { SCENES } from '../scenes';
+import { FRAME_PRIORITY } from './frameOrder';
 import { mountedSceneIndices, SCENE_ORIGINS } from './layout';
 import { SCENE_PROGRESS, syncSceneProgress } from './sceneProgress';
 import { useAppStore } from './store';
@@ -17,7 +18,7 @@ export function SceneManager() {
 
   useFrame(() => {
     syncSceneProgress(useAppStore.getState().t);
-  });
+  }, FRAME_PRIORITY.progress);
 
   return (
     <Suspense fallback={null}>

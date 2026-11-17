@@ -19,6 +19,16 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
 }
 
+/** A programmatic move of the journey (menu link, Skip, hand-over). `id` increases with every one. */
+export interface JumpRequest {
+  id: number;
+  t: number;
+}
+
+function nextJump(prev: JumpRequest | null, t: number): JumpRequest {
+  return { id: (prev?.id ?? 0) + 1, t };
+}
+
 export interface AppState {
   language: Lang;
   muted: boolean;
@@ -32,16 +42,28 @@ export interface AppState {
   activeScene: number;
   /** `t` at which the scroll journey starts: 0 for the dev shortcut, PART_A_END_T after Part A. */
   journeyFromT: number;
+  /**
+   * The latest programmatic jump. CameraRig snaps to the new pose and JourneyScroll moves the
+   * scroll position when `id` changes. Subscribe imperatively; it is not meant to drive renders.
+   */
+  jump: JumpRequest | null;
 
   setLanguage: (lang: Lang) => void;
   toggleLanguage: () => void;
   setMuted: (muted: boolean) => void;
   setQuality: (quality: QualityTier) => void;
   setReducedMotion: (reduced: boolean) => void;
+  /** Entering 'journey' goes through startJourney(t), so scroll starts where the camera is. */
   setStage: (stage: Stage) => void;
+  /** Low-level write of `t`. In journey mode the scroll position overwrites it every frame; use jumpTo to move. */
   setT: (t: number) => void;
-  /** Enter scroll mode with scroll offset 0 mapped to `fromT`. */
+  /** Enter scroll mode with scroll offset 0 mapped to `fromT`. The camera snaps there. */
   startJourney: (fromT?: number) => void;
+  /**
+   * Move to master time `t` from anywhere (menu links, Skip). In journey mode it re-aims the
+   * scroll position and snaps the camera; before that it starts the journey at `t`.
+   */
+  jumpTo: (t: number) => void;
 }
 
 /**
@@ -59,6 +81,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   t: 0,
   activeScene: 0,
   journeyFromT: 0,
+  jump: null,
 
   setLanguage: (language) => {
     try {
@@ -72,7 +95,10 @@ export const useAppStore = create<AppState>()((set, get) => ({
   setMuted: (muted) => set({ muted }),
   setQuality: (quality) => set({ quality }),
   setReducedMotion: (reducedMotion) => set({ reducedMotion }),
-  setStage: (stage) => set({ stage }),
+  setStage: (stage) => {
+    if (stage === 'journey') get().startJourney(get().t);
+    else set({ stage });
+  },
 
   setT: (value) => {
     const t = clamp01(value);
@@ -81,6 +107,22 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
   startJourney: (fromT = 0) => {
     const t = clamp01(fromT);
-    set({ stage: 'journey', journeyFromT: t, t, activeScene: sceneIndexAt(t) });
+    set((s) => ({
+      stage: 'journey',
+      journeyFromT: t,
+      t,
+      activeScene: sceneIndexAt(t),
+      jump: nextJump(s.jump, t),
+    }));
+  },
+  jumpTo: (target) => {
+    const s = get();
+    if (s.stage !== 'journey') {
+      s.startJourney(target);
+      return;
+    }
+    // Scroll offset 0 is journeyFromT, so nothing earlier than that is reachable.
+    const t = Math.max(clamp01(target), s.journeyFromT);
+    set({ t, activeScene: sceneIndexAt(t), jump: nextJump(s.jump, t) });
   },
 }));

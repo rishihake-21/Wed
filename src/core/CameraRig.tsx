@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import { sampleCameraPose } from './cameraPath';
+import { FRAME_PRIORITY } from './frameOrder';
 import { useAppStore } from './store';
 
 // Higher = snappier. These only soften speed changes at scene boundaries and scroll flicks.
@@ -14,7 +15,9 @@ const MAX_DELTA = 0.1;
 
 /**
  * Moves the camera along the spline for the current master time `t`.
- * Reduced-motion handling (crossfades instead of flights) arrives in Phase 9.
+ * A programmatic jump (store.jump) snaps instead of flying, because the scenes in between are
+ * already unmounted; Phase 2 hides the cut with a diya-light flash.
+ * Reduced-motion handling (crossfades instead of camera flights) arrives in Phase 9.
  */
 export function CameraRig() {
   const camera = useThree((s) => s.camera);
@@ -26,12 +29,19 @@ export function CameraRig() {
       targetPosition: new Vector3(),
       targetLookAt: new Vector3(),
       ready: false,
+      jumpId: useAppStore.getState().jump?.id ?? 0,
     }),
     [],
   );
 
   useFrame((_, delta) => {
-    sampleCameraPose(useAppStore.getState().t, rig.targetPosition, rig.targetLookAt);
+    const { t, jump } = useAppStore.getState();
+    sampleCameraPose(t, rig.targetPosition, rig.targetLookAt);
+
+    if (jump && jump.id !== rig.jumpId) {
+      rig.jumpId = jump.id;
+      rig.ready = false; // snap below
+    }
 
     if (!rig.ready || rig.position.distanceTo(rig.targetPosition) > SNAP_DISTANCE) {
       rig.position.copy(rig.targetPosition);
@@ -45,7 +55,7 @@ export function CameraRig() {
 
     camera.position.copy(rig.position);
     camera.lookAt(rig.lookAt);
-  });
+  }, FRAME_PRIORITY.camera);
 
   return null;
 }

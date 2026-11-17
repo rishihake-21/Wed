@@ -14,6 +14,11 @@ Vite, React 18, TypeScript, three, @react-three/fiber 8, @react-three/drei 9, zu
 - `progress` is a ref-style box (`progress.current`, 0–1), not a number, so scenes don't re-render every frame. Read it in `useFrame` or a rAF/GSAP loop.
 - Never subscribe a component to `t`; read `useAppStore.getState().t` inside `useFrame`.
 - Only the active and next scene are mounted (`SceneManager`). Dispose textures you create by hand when a scene unmounts.
+- To move the journey on purpose (menu links, Skip, hand-over) call `useAppStore.getState().jumpTo(t)`; entering the journey uses `startJourney(t)`. Never write `t` with `setT` for that: in journey mode the scroll position overwrites `t` every frame. A jump snaps the camera; Phase 2 hides the cut with a diya-light flash.
+- Per-frame order lives in `src/core/frameOrder.ts` (input → scene progress → camera → scenes). Use those priorities, and never a positive `useFrame` priority: in R3F v8 it stops automatic rendering.
+- Camera framing is tuned for portrait phones first: `fovForAspect` widens the vertical FOV, `ROOM_SIDE_OFFSET` and `focusWeight` keep rooms in frame. Run `npm run check` after touching `layout.ts` or `cameraPath.ts`.
+- Fog far plane equals `SEGMENT_LENGTH`, so the next room is fully fogged when it mounts. Real scenes may change the fog, but must not let rooms pop in.
+- Open decision for Phase 3: HTML overlays and lite mode cannot rely on anything that lives inside the Canvas (scene progress is synced there today). Give overlays a DOM-side registry keyed by `SceneKey`.
 
 ## Content and style
 
@@ -26,7 +31,7 @@ Vite, React 18, TypeScript, three, @react-three/fiber 8, @react-three/drei 9, zu
 
 - Quality tiers: `high | medium | low | lite`. Particle counts, post-processing and pixel ratio read from the quality store.
 - No real-time shadows on mobile; at most 2 real-time lights; instanced meshes for repeated objects.
-- Pixel ratio capped at 1.5 on mobile.
+- Pixel ratio is capped per quality tier in `Experience.tsx` (1.5 for high/medium, 1 for low). The desktop cap of 2 and adaptive resolution arrive in Phase 10.
 
 ## Working style
 
