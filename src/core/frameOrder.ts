@@ -6,10 +6,10 @@
  * Never use a POSITIVE priority: in R3F v8 that makes you responsible for rendering and the
  * automatic render stops.
  *
- * Order: input (scroll → t) → progress (t → each scene's local progress) → camera → scenes.
+ * Order: input (scroll → t) → camera → scenes. Scene progress needs no slot: it is recomputed from a
+ * store subscription (core/sceneProgress.ts) the moment `t` changes.
  */
 export const FRAME_PRIORITY = {
   input: -3,
-  progress: -2,
   camera: -1,
 } as const;

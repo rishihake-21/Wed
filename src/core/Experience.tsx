@@ -2,11 +2,14 @@ import { useLayoutEffect } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { Stats } from '@react-three/drei';
 import { PerspectiveCamera } from 'three';
+import { NightSky } from '../shared/NightSky';
 import { colors } from '../theme/tokens';
 import { CameraRig } from './CameraRig';
 import { DEV_FLAGS } from './devFlags';
 import { JourneyScroll } from './JourneyScroll';
 import { CAMERA_WAYPOINTS, FOV_LANDSCAPE, fovForAspect, SEGMENT_LENGTH } from './layout';
+import { PostFX } from './PostFX';
+import { RenderStats } from './RenderStats';
 import { SceneManager } from './SceneManager';
 import { useAppStore } from './store';
 import type { QualityTier } from './types';
@@ -59,13 +62,18 @@ export function Experience() {
         <ambientLight intensity={0.7} />
         <directionalLight position={[10, 20, 5]} intensity={1.2} />
 
+        {/* World backdrop: scenes 1–4 all play under this one sky, so it outlives any single scene. */}
+        <NightSky quality={quality} />
+
         <ResponsiveFov />
         <CameraRig />
         <SceneManager />
+        <PostFX />
 
         {stage === 'journey' && <JourneyScroll />}
         {/* Mid-left, so the FPS panel doesn't cover the menu button (top left). */}
         {DEV_FLAGS.showDebug && <Stats className="!left-2 !top-1/2" />}
+        {DEV_FLAGS.showDebug && <RenderStats />}
       </Canvas>
     </div>
   );

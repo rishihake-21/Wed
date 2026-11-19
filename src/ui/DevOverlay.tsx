@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { audioStatus } from '../audio/audioManager';
+import { RENDER_STATS } from '../core/renderStats';
 import { mountedSceneIndices, SCENE_COUNT, SCENE_META } from '../core/layout';
 import { useAppStore } from '../core/store';
 import type { AppState } from '../core/store';
@@ -16,6 +17,7 @@ function format(s: AppState): string {
     `quality  ${s.quality} (detected ${s.detectedQuality}: ${s.qualityNote})`,
     `motion   ${s.reducedMotion ? 'reduced' : 'full'}`,
     `sound    ${s.muted ? 'muted' : 'on'} · ${audioStatus()}`,
+    `render   ${RENDER_STATS.calls} draws · ${(RENDER_STATS.triangles / 1000).toFixed(1)}k tris`,
   ].join('\n');
 }
 

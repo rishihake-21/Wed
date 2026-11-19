@@ -5,6 +5,7 @@ import { useAppStore } from '../core/store';
 import { Controls } from './Controls';
 import { DevOverlay } from './DevOverlay';
 import { Gate } from './Gate';
+import { SceneOverlays } from './overlays/SceneOverlays';
 
 /**
  * DOM layer above the canvas. The layer itself ignores pointer events so scroll and touch
@@ -16,6 +17,7 @@ export function Hud() {
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10">
+      <SceneOverlays />
       <Controls />
 
       {stage === 'journey' && (

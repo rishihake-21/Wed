@@ -4,7 +4,7 @@ Vrindavan-themed Maharashtrian wedding invitation: a cinematic, scroll-driven 3D
 
 ## Stack
 
-Vite, React 18, TypeScript, three, @react-three/fiber 8, @react-three/drei 9, zustand, Tailwind 3. gsap, howler and detect-gpu arrived in Phase 2. Added in the phase that first uses them: @react-three/postprocessing.
+Vite, React 18, TypeScript, three, @react-three/fiber 8, @react-three/drei 9, zustand, Tailwind 3. gsap, howler and detect-gpu arrived in Phase 2, @react-three/postprocessing in Phase 3.
 
 ## Architecture contracts (frozen in Phase 1)
 
@@ -14,12 +14,14 @@ Vite, React 18, TypeScript, three, @react-three/fiber 8, @react-three/drei 9, zu
 - `progress` is a ref-style box (`progress.current`, 0–1), not a number, so scenes don't re-render every frame. Read it in `useFrame` or a rAF/GSAP loop.
 - Never subscribe a component to `t`; read `useAppStore.getState().t` inside `useFrame`.
 - Only the active and next scene are mounted (`SceneManager`). Dispose textures you create by hand when a scene unmounts.
+- A scene unmounts the moment the next one becomes active, so anything still in view would pop out. Every scene must dissolve its own content over the last part of its `progress` (`sceneFade` in `src/shared/sceneFade.ts`, fed to a `uFade` uniform, starting at `FADE_OUT_START`). The persistent sky is the only thing that stays. `npm run check` guards the curve.
+- Scene `progress` follows `t` through `startSceneProgressSync()` in `src/core/sceneProgress.ts` (called from `main.tsx`, a store subscription), not through anything in the Canvas. HTML overlays and lite mode can therefore read `SCENE_PROGRESS[i]` with no Canvas mounted.
 - To move the journey on purpose (menu links, Skip, hand-over) call `useAppStore.getState().jumpTo(t)`; entering the journey uses `startJourney(t)`. Never write `t` with `setT` for that: in journey mode the scroll position overwrites `t` every frame. A jump snaps the camera; a later phase hides the cut with a diya-light flash.
 - Part A, Skip and menu links are `stage` changes in the store: `skipIntro`, `jumpToScene` (built on `jumpTo`) and `startJourney`. While `stage` is `cinematic`, only `PartADriver` writes `t`. Leaving the intro by any route ends at `startJourney`, which kills the GSAP timeline.
-- Per-frame order lives in `src/core/frameOrder.ts` (input → scene progress → camera → scenes). Use those priorities, and never a positive `useFrame` priority: in R3F v8 it stops automatic rendering.
+- Per-frame order lives in `src/core/frameOrder.ts` (input → camera → scenes; scene progress is synced by the store subscription, not per frame). Use those priorities, and never a positive `useFrame` priority: in R3F v8 it stops automatic rendering.
 - Camera framing is tuned for portrait phones first: `fovForAspect` widens the vertical FOV, `ROOM_SIDE_OFFSET` and `focusWeight` keep rooms in frame. Run `npm run check` after touching `layout.ts` or `cameraPath.ts`.
 - Fog far plane equals `SEGMENT_LENGTH`, so the next room is fully fogged when it mounts. Real scenes may change the fog, but must not let rooms pop in.
-- Open decision for Phase 3: HTML overlays and lite mode cannot rely on anything that lives inside the Canvas (scene progress is synced there today). Give overlays a DOM-side registry keyed by `SceneKey`.
+- HTML overlays live in a DOM-side registry keyed by `SceneKey` (`src/ui/overlays/registry.ts`). Nothing an overlay needs may live inside the Canvas.
 
 ## Content and style
 
@@ -39,3 +41,11 @@ Vite, React 18, TypeScript, three, @react-three/fiber 8, @react-three/drei 9, zu
 ## Working style
 
 Complete files when creating, minimal diffs when editing. Keep each change small enough to review. After a phase: run it, test on a real phone (`npm run dev:host`), commit.
+
+## Scenes and shared building blocks
+
+- The sky is a persistent backdrop (`src/shared/NightSky.tsx`, mounted in Experience), not part of any scene. Scenes add foreground only. Reuse `src/shared/` (`createInstanced`, `GLSL_NOISE`, `GLSL_BILLBOARD`, `byTier`, `Fireflies`, `mulberry32`) before writing new helpers.
+- Procedural layouts use the seeded `mulberry32` (`src/shared/rng.ts`), never `Math.random`, so a scene looks the same on every device and can be tested. Keep layout maths in a pure module with no three.js imports (like `scenes/invocation/diyaLayout.ts`) and put a guard for it in `scripts/`.
+- Shader materials output values above 1.0 for anything that should glow (flames, moon); PostFX blooms only those and tone-maps the frame on high and medium. Opaque shaders (sky dome, water, diya bowls) end with `tonemapping_fragment` and `colorspace_fragment`. Blended glow layers (stars, flames, reflections, fireflies, mist) leave them out on purpose: on the composer path PostFX tone-maps and encodes the whole frame once, and the low tier writes them as they are.
+- Scene text is an HTML overlay in `src/ui/overlays/`, registered in `registry.ts` and faded with `useFadeWindow` from the scene's `progress`. Text is large (24px and up), so it must keep at least 3:1 contrast over the brightest part of its scene; the Invocation text is cream on a dark scrim for that reason.
+- `npm run check` runs the layout, framing, quality and invocation guards in Node (22.6+, type stripping plus the small resolve hook in `scripts/lib/`). Run it after touching `layout.ts`, `cameraPath.ts`, the diya layout or the fade curve.
