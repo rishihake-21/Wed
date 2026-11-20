@@ -9,7 +9,9 @@ import assert from 'node:assert/strict';
 import * as L from '../src/core/layout.ts';
 import { basis, dot, halfFovTangents, pose, SCREENS, sub } from './lib/spline.mjs';
 
-// Placeholder box (PlaceholderScene.tsx): 3 × 3 × 3, centred 1.5 above the scene origin, spinning
+// Placeholder box (PlaceholderScene.tsx): 3 × 3 × 3, centred 1.5 above the scene origin, spinning.
+// Each scene's subject is stood at its gaze target (L.GAZE_TARGETS: the origin for most scenes, the
+// hero's spot in scenes 2 and 3), so the same box tests that the camera keeps the subject in view.
 const BOX_Y = 1.5, BOX_HALF_DIAGONAL = 1.5 * Math.SQRT2;
 const MIN_VISIBLE_PERCENT = 25; // every scene, every screen: the box is in view this much of its scroll
 const MAX_PART_A_YAW = 30; // deg/s during the auto-played opening ("slow cinematic camera")
@@ -26,7 +28,7 @@ for (const [name, aspect] of SCREENS) {
     for (let k = 0; k < N; k++) {
       const ps = pose(s + ((e - s) * (k + 0.5)) / N);
       const { f, r, u } = basis(ps);
-      const v = sub([L.SCENE_ORIGINS[i][0], BOX_Y, L.SCENE_ORIGINS[i][2]], ps.pos);
+      const v = sub([L.GAZE_TARGETS[i][0], BOX_Y, L.GAZE_TARGETS[i][2]], ps.pos);
       const z = dot(v, f);
       if (z > 0.1 && Math.abs(dot(v, r)) <= z * tanH && Math.abs(dot(v, u)) <= z * tanV) visible++;
     }
@@ -57,7 +59,7 @@ for (let i = 0; i < L.SCENE_COUNT; i++) {
   for (let k = 0; k < N; k++) {
     const ps = pose(s + ((e - s) * (k + 0.5)) / N);
     if (ps.pos[1] < -0.5 || ps.pos[1] > 3.5) continue;
-    const d = Math.hypot(L.SCENE_ORIGINS[i][0] - ps.pos[0], L.SCENE_ORIGINS[i][2] - ps.pos[2]) - BOX_HALF_DIAGONAL;
+    const d = Math.hypot(L.GAZE_TARGETS[i][0] - ps.pos[0], L.GAZE_TARGETS[i][2] - ps.pos[2]) - BOX_HALF_DIAGONAL;
     clearance = Math.min(clearance, d);
   }
 }

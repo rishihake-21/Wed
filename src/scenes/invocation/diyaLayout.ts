@@ -6,7 +6,7 @@
  * drift toward it (+z) at their own pace, so a diya's whole path is tested against the camera's:
  * none may pass closer than DIYA_CAMERA_CLEARANCE, or its bowl would fill the lens.
  */
-import { CAMERA_WAYPOINTS, SCENE_ORIGINS } from '../../core/layout';
+import { cameraLine } from '../../shared/cameraLine';
 import { mulberry32 } from '../../shared/rng';
 
 /** Floating diyas per quality tier (lite draws none). */
@@ -34,20 +34,12 @@ export const DIYA_CAMERA_CLEARANCE = 2.4;
 export const CLUSTER_CENTER = [1.5, -9] as const;
 export const CLUSTER_RADIUS = [1.3, 2.6] as const;
 
-const [START, END] = [CAMERA_WAYPOINTS[0], CAMERA_WAYPOINTS[1]];
-const ORIGIN = SCENE_ORIGINS[0];
-
-/** The camera's path through scene 1 as a straight line in local x and z, by progress 0–1. */
-function cameraLine(progress: number): readonly [number, number] {
-  return [START[0] + (END[0] - START[0]) * progress - ORIGIN[0], START[2] + (END[2] - START[2]) * progress - ORIGIN[2]];
-}
-
 /** Smallest horizontal gap between a drifting diya and the camera's line over the whole scene. */
 export function closestApproach(x: number, z: number, speed: number): number {
   let closest = Infinity;
   for (let i = 0; i <= 40; i++) {
     const progress = i / 40;
-    const [cx, cz] = cameraLine(progress);
+    const [cx, cz] = cameraLine(0, progress);
     closest = Math.min(closest, Math.hypot(x - cx, z + DIYA_SCENE_SECONDS * progress * speed - cz));
   }
   return closest;

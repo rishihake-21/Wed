@@ -193,6 +193,73 @@ export function focusWeight(progress: number): number {
   return FOCUS_STRENGTH * (27 / 4) * p * (1 - p) * (1 - p);
 }
 
+// ---------------------------------------------------------------------------
+// Heroes and gaze (scenes 2 and 3 hold the camera's attention on one figure)
+// ---------------------------------------------------------------------------
+
+/**
+ * Height of the groom and bride cut-outs in the world, metres. They are drawn monumental on
+ * purpose: the camera flies past at about 3 m/s and may not turn faster than MAX_PART_A_YAW, so a
+ * hero can't be allowed close to the lens, and at that distance a human-sized figure would be a
+ * speck on a portrait phone. `npm run check` (check-heroes.mjs) holds the resulting framing.
+ */
+export const HERO_HEIGHT = 6;
+
+/**
+ * How high up the hero the camera looks, as a share of HERO_HEIGHT. Looking low lifts the figure in
+ * the frame, so the name block in the bottom third of a portrait phone sits below his feet instead
+ * of over his legs.
+ */
+export const HERO_GAZE_HEIGHT = 0.25;
+
+/**
+ * Where each hero stands (scene-local, feet on y = 0). The two scenes are mirror images: the
+ * camera path weaves to the other side in each, and so does the hero.
+ */
+export const HERO_SPOTS: Readonly<Partial<Record<SceneKey, Vec3>>> = {
+  groom: [5.5, 0, -12.5],
+  bride: [-5.5, 0, -12.5],
+};
+
+export interface SceneGaze {
+  /** Scene-local point the camera looks toward. */
+  target: Vec3;
+  /** Share (0–1) of the gaze pulled from "straight ahead" toward the target, at its strongest. */
+  strength: number;
+  /**
+   * Progress at which the pull has fully arrived and at which it starts to let go. Leave out for
+   * the default glance (focusWeight): a turn toward the scene that is gone by the time the camera
+   * is abeam of it. A hold keeps looking at one thing for most of the scene.
+   */
+  hold?: readonly [number, number];
+}
+
+/** What the camera looks at in each scene. Weight is 0 at both ends of every scene either way. */
+export const SCENE_GAZE: readonly SceneGaze[] = SCENE_META.map(({ key }): SceneGaze => {
+  const hero = HERO_SPOTS[key];
+  return hero
+    ? { target: [hero[0], hero[1] + HERO_HEIGHT * HERO_GAZE_HEIGHT, hero[2]], strength: 0.85, hold: [0.2, 0.68] }
+    : { target: [0, FOCUS_HEIGHT, 0], strength: FOCUS_STRENGTH };
+});
+
+/** The same targets in world space, precomputed so the camera rig allocates nothing per frame. */
+export const GAZE_TARGETS: readonly Vec3[] = SCENE_GAZE.map(
+  (g, i) => [SCENE_ORIGINS[i][0] + g.target[0], SCENE_ORIGINS[i][1] + g.target[1], SCENE_ORIGINS[i][2] + g.target[2]] as const,
+);
+
+const smooth01 = (from: number, to: number, x: number): number => {
+  const k = clamp01((x - from) / (to - from));
+  return k * k * (3 - 2 * k);
+};
+
+/** How strongly the gaze is drawn toward scene `i`'s target at local progress `progress`. */
+export function gazeWeight(i: number, progress: number): number {
+  const { hold, strength } = SCENE_GAZE[i];
+  if (!hold) return focusWeight(progress);
+  const p = clamp01(progress);
+  return strength * smooth01(0, hold[0], p) * (1 - smooth01(hold[1], 1, p));
+}
+
 export const FOV_LANDSCAPE = 60;
 export const FOV_PORTRAIT = 80;
 

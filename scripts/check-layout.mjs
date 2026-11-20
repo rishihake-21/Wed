@@ -78,6 +78,28 @@ for (let k = 0; k <= 1000; k++) {
 near(peakAt, 1 / 3, 'focusWeight peak position', 2e-3);
 assert.ok(peak > 0.4, `focusWeight peak too weak: ${peak}`);
 
+// Per-scene gaze: every scene (glance or hold) is continuous across boundaries and stays in 0–1;
+// the hero scenes hold their pull on a plateau; a scene with no hero keeps the plain glance.
+assert.equal(L.SCENE_GAZE.length, L.SCENE_COUNT);
+assert.equal(L.GAZE_TARGETS.length, L.SCENE_COUNT);
+for (let i = 0; i < L.SCENE_COUNT; i++) {
+  near(L.gazeWeight(i, 0), 0, `gazeWeight(${i}, 0)`);
+  near(L.gazeWeight(i, 1), 0, `gazeWeight(${i}, 1)`);
+  for (let k = 0; k <= 1000; k++) {
+    const v = L.gazeWeight(i, k / 1000);
+    assert.ok(v >= 0 && v <= 1, `gazeWeight out of range in scene ${i} at ${k}: ${v}`);
+  }
+}
+for (const key of ['groom', 'bride']) {
+  const i = L.sceneIndexOf(key), { hold, strength } = L.SCENE_GAZE[i];
+  assert.ok(hold && hold[0] < hold[1], `${key} should hold its gaze`);
+  near(L.gazeWeight(i, (hold[0] + hold[1]) / 2), strength, `${key} gaze plateau`);
+  const spot = L.HERO_SPOTS[key];
+  near(L.SCENE_GAZE[i].target[0], spot[0], `${key} gaze target x`);
+  near(L.SCENE_GAZE[i].target[2], spot[2], `${key} gaze target z`);
+}
+for (const i of [0, 3, 4, 5, 6, 7, 8]) near(L.gazeWeight(i, 0.4), L.focusWeight(0.4), `scene ${i} keeps the glance`);
+
 // Field of view: 60° on landscape and square, 80° on tall phones, widening monotonically
 near(L.fovForAspect(16 / 9), 60, 'fov 16:9');
 near(L.fovForAspect(1), 60, 'fov square');

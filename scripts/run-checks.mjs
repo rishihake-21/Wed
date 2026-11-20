@@ -2,7 +2,7 @@
 // (type stripping and the extensionless-import hook), so they can import the app's own pure
 // TypeScript modules. Run a single guard the same way:
 //   node --experimental-strip-types --no-warnings --import ./scripts/lib/register-ts.mjs scripts/check-quality.mjs
-const CHECKS = ['check-layout', 'check-framing', 'check-quality', 'check-invocation'];
+const CHECKS = ['check-layout', 'check-framing', 'check-quality', 'check-invocation', 'check-heroes'];
 
 for (const name of CHECKS) {
   console.log(`\n── ${name}`);

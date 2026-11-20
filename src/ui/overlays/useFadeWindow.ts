@@ -48,3 +48,25 @@ export function useFadeWindow<T extends HTMLElement>(progress: SceneProgress, wi
 
   return ref;
 }
+
+/**
+ * Drives a CSS variable `--reveal` (0 → 1) on an element from a scene's progress, for wipe
+ * effects such as a gold sweep across a name. Like useFadeWindow it touches only the DOM node,
+ * so nothing re-renders while the scene plays.
+ */
+export function useRevealSweep<T extends HTMLElement>(progress: SceneProgress, range: readonly [number, number]) {
+  const ref = useRef<T>(null);
+  const [from, to] = range;
+
+  useEffect(() => {
+    let frame = 0;
+    const tick = () => {
+      ref.current?.style.setProperty('--reveal', smooth(from, to, progress.current).toFixed(3));
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [progress, from, to]);
+
+  return ref;
+}

@@ -1,10 +1,9 @@
 import { CatmullRomCurve3, Vector3 } from 'three';
 import {
   CAMERA_WAYPOINTS,
-  FOCUS_HEIGHT,
+  GAZE_TARGETS,
   LOOK_AHEAD,
-  SCENE_ORIGINS,
-  focusWeight,
+  gazeWeight,
   sceneIndexAt,
   sceneProgressAt,
   tToPathU,
@@ -28,9 +27,9 @@ const focus = new Vector3();
 /**
  * Samples the camera pose at master time `t`.
  *
- * Position is the spline at tToPathU(t). The gaze looks down the path, and is drawn toward
- * the active scene's origin by focusWeight(progress), which is 0 at both scene boundaries
- * so the view is continuous across them.
+ * Position is the spline at tToPathU(t). The gaze looks down the path, and is drawn toward the
+ * active scene's gaze target (SCENE_GAZE in layout.ts) by gazeWeight, which is 0 at both scene
+ * boundaries so the view is continuous across them.
  */
 export function sampleCameraPose(t: number, outPosition: Vector3, outLookAt: Vector3): void {
   const u = tToPathU(t);
@@ -43,7 +42,7 @@ export function sampleCameraPose(t: number, outPosition: Vector3, outLookAt: Vec
   outLookAt.copy(outPosition).addScaledVector(tangent, LOOK_AHEAD);
 
   const scene = sceneIndexAt(t);
-  const [ox, oy, oz] = SCENE_ORIGINS[scene];
-  focus.set(ox, oy + FOCUS_HEIGHT, oz);
-  outLookAt.lerp(focus, focusWeight(sceneProgressAt(t, scene)));
+  const [fx, fy, fz] = GAZE_TARGETS[scene];
+  focus.set(fx, fy, fz);
+  outLookAt.lerp(focus, gazeWeight(scene, sceneProgressAt(t, scene)));
 }

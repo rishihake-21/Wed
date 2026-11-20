@@ -127,7 +127,7 @@ export const content: WeddingContent = {
     groom: {
       prefix: { mr: 'चि.', en: '' },
       name: { mr: 'कृष्ण', en: 'Krushna' },
-      family: { mr: '[कुटुंब परिचय]', en: '[Family line]' },
+      family: { mr: 'श्री. [वडिलांचे नाव] व सौ. [आईचे नाव] यांचे चिरंजीव', en: 'Son of Shri [Father’s name] & Smt [Mother’s name]' },
     },
     bride: {
       prefix: { mr: 'चि.सौ.कां.', en: '' },

@@ -29,7 +29,7 @@ function cubicPoly() {
   };
 }
 
-function makeCurve(points) {
+export function makeCurve(points) {
   const l = points.length;
   const px = cubicPoly(), py = cubicPoly(), pz = cubicPoly();
   return (t) => {
@@ -48,7 +48,7 @@ function makeCurve(points) {
   };
 }
 
-const curve = makeCurve(L.CAMERA_WAYPOINTS.map((p) => [...p]));
+export const curve = makeCurve(L.CAMERA_WAYPOINTS.map((p) => [...p]));
 for (let k = 0; k <= L.SCENE_COUNT; k++) {
   const err = len(sub(curve(k / L.SCENE_COUNT), [...L.CAMERA_WAYPOINTS[k]]));
   assert.ok(err < 1e-6, `spline misses waypoint ${k} by ${err}`);
@@ -60,10 +60,9 @@ export function pose(t) {
   const pos = curve(u);
   const tan = norm(sub(curve(Math.min(u + 1e-4, 1)), curve(Math.max(u - 1e-4, 0))));
   const scene = L.sceneIndexAt(t);
-  const o = L.SCENE_ORIGINS[scene];
-  const focus = [o[0], o[1] + L.FOCUS_HEIGHT, o[2]];
+  const focus = [...L.GAZE_TARGETS[scene]];
   let look = add(pos, tan.map((v) => v * L.LOOK_AHEAD));
-  const wgt = L.focusWeight(L.sceneProgressAt(t, scene));
+  const wgt = L.gazeWeight(scene, L.sceneProgressAt(t, scene));
   look = look.map((v, i) => v + (focus[i] - v) * wgt);
   return { pos, look };
 }

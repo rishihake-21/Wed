@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react';
 import type { SceneKey } from '../../core/layout';
 import { InvocationOverlay } from './InvocationOverlay';
+import { GroomOverlay } from './PersonOverlays';
 
 /**
  * HTML text layers, keyed by scene. A scene with no entry has no text. Each overlay reads its own
@@ -10,4 +11,5 @@ import { InvocationOverlay } from './InvocationOverlay';
  */
 export const OVERLAYS: Partial<Record<SceneKey, ComponentType>> = {
   invocation: InvocationOverlay,
+  groom: GroomOverlay,
 };
