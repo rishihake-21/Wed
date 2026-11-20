@@ -1,30 +1,41 @@
 import { useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Color, ShaderMaterial, UniformsLib, UniformsUtils } from 'three';
-import { GLSL_NOISE } from '../../shared/glsl';
-import { useDisposable } from '../../shared/particles';
-import { sceneFade } from '../../shared/sceneFade';
-import { MOON_DIRECTION, SKY } from '../../shared/sky';
-import { byTier } from '../../shared/tier';
-import type { QualityTier, SceneProgress } from '../../core/types';
-import { colors } from '../../theme/tokens';
+import { GLSL_NOISE } from './glsl';
+import { useDisposable } from './particles';
+import { sceneFade } from './sceneFade';
+import { MOON_DIRECTION, SKY } from './sky';
+import { byTier } from './tier';
+import type { QualityTier, SceneProgress, Vec3 } from '../core/types';
+import { colors } from '../theme/tokens';
 
 /** Ripple layers per tier (each is one cos() in the fragment shader). */
 const RIPPLE_LAYERS = { high: 3, medium: 2, low: 1 } as const;
 
-/** Plane size. Bigger than the fog's far distance, so its edge is always fully fogged. */
-const SIZE = 190;
+/** Endless water: bigger than the fog's far distance, so its edge is always fully fogged. */
+const ENDLESS_SIZE = 190;
 
-function makeMaterial(layers: number): ShaderMaterial {
+interface WaterOptions {
+  layers: number;
+  /** A pond with a rim that fades into the horizon colour, instead of a river out to the horizon. */
+  bounded: boolean;
+  ripple: number;
+  tint: Color | null;
+  tintAmount: number;
+}
+
+function makeMaterial({ layers, bounded, ripple, tint, tintAmount }: WaterOptions): ShaderMaterial {
   const deep = new Color(colors.midnight).lerp(new Color(colors.yamuna), 0.16).multiplyScalar(0.7);
+  if (tint) deep.lerp(tint, tintAmount);
   return new ShaderMaterial({
     fog: true,
-    defines: { LAYERS: layers },
+    defines: bounded ? { LAYERS: layers, BOUNDED: 1 } : { LAYERS: layers },
     uniforms: UniformsUtils.merge([
       UniformsLib.fog,
       {
         uTime: { value: 0 },
         uFade: { value: 1 },
+        uRipple: { value: ripple },
         uDeep: { value: deep },
         uHorizon: { value: SKY.horizon },
         uBand: { value: SKY.band },
@@ -36,7 +47,9 @@ function makeMaterial(layers: number): ShaderMaterial {
     vertexShader: /* glsl */ `
       #include <fog_pars_vertex>
       varying vec3 vWorld;
+      varying vec2 vUv;
       void main() {
+        vUv = uv;
         vec4 wp = modelMatrix * vec4(position, 1.0);
         vWorld = wp.xyz;
         vec4 mvPosition = viewMatrix * wp;
@@ -46,9 +59,10 @@ function makeMaterial(layers: number): ShaderMaterial {
     `,
     fragmentShader: /* glsl */ `
       ${GLSL_NOISE}
-      uniform float uTime, uFade;
+      uniform float uTime, uFade, uRipple;
       uniform vec3 uDeep, uHorizon, uBand, uZenith, uMoonColor, uMoonDir;
       varying vec3 vWorld;
+      varying vec2 vUv;
       #include <fog_pars_fragment>
 
       // Gradient of one travelling sine ripple.
@@ -75,6 +89,7 @@ function makeMaterial(layers: number): ShaderMaterial {
           g += ripple(p, vec2(0.3, -0.95), 6.3, 2.0, 0.003);
           g += (vec2(noise21(p * 2.5 + uTime * 0.2), noise21(p * 2.5 - uTime * 0.17 + 9.0)) - 0.5) * 0.01;
         #endif
+        g *= uRipple;
         vec3 N = normalize(vec3(-g.x, 1.0, -g.y));
 
         float cosT = clamp(dot(N, V), 0.0, 1.0);
@@ -88,6 +103,11 @@ function makeMaterial(layers: number): ShaderMaterial {
         float glint = pow(m, 220.0) * 2.0 + pow(m, 45.0) * 0.14 + pow(m, 14.0) * 0.02;
         col += uMoonColor * glint;
 
+        #ifdef BOUNDED
+          // A pond, not a river: the water fades into the horizon colour at its rim.
+          col = mix(col, uHorizon, smoothstep(0.62, 1.0, length(vUv - 0.5) * 2.0));
+        #endif
+
         // The scene unmounts at the end of its progress: dissolve into the colour of the empty ground below the horizon.
         col = mix(uHorizon, col, uFade);
 
@@ -100,10 +120,32 @@ function makeMaterial(layers: number): ShaderMaterial {
   });
 }
 
-/** The Yamuna: one big plane, all the work in the fragment shader (ripples, fresnel, moon glint). */
-export function YamunaWater({ progress, quality }: { progress: SceneProgress; quality: QualityTier }) {
+interface WaterProps {
+  progress: SceneProgress;
+  quality: QualityTier;
+  /** Scene-local centre of the water plane. */
+  position?: Vec3;
+  /** Pond radius in metres. Omit for endless water (a river, out to the horizon). */
+  radius?: number;
+  /** Ripple strength: 1 is the river, lower is a calmer pond. */
+  ripple?: number;
+  /** Mixes the deep water colour toward this colour (e.g. a green pond). */
+  tint?: string;
+  tintAmount?: number;
+}
+
+/**
+ * One plane, all the work in the fragment shader (ripples, fresnel, moon glint). The Yamuna in
+ * scene 1 (endless, the default) and the lotus pond in scene 3 (`radius`, a rim that fades out).
+ * It dissolves into the horizon colour over the end of the scene's progress.
+ */
+export function Water({ progress, quality, position = [0, 0, -40], radius, ripple = 1, tint, tintAmount = 0.2 }: WaterProps) {
   const layers = byTier(quality, RIPPLE_LAYERS);
-  const material = useMemo(() => makeMaterial(layers), [layers]);
+  const bounded = radius !== undefined;
+  const material = useMemo(
+    () => makeMaterial({ layers, bounded, ripple, tint: tint ? new Color(tint) : null, tintAmount }),
+    [layers, bounded, ripple, tint, tintAmount],
+  );
   useDisposable(material);
 
   useFrame(({ clock }) => {
@@ -111,9 +153,10 @@ export function YamunaWater({ progress, quality }: { progress: SceneProgress; qu
     material.uniforms.uFade.value = sceneFade(progress.current);
   });
 
+  const half = radius ?? ENDLESS_SIZE / 2;
   return (
-    <mesh material={material} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, -40]} frustumCulled={false}>
-      <planeGeometry args={[SIZE, SIZE]} />
+    <mesh material={material} rotation={[-Math.PI / 2, 0, 0]} position={position} frustumCulled={false}>
+      <planeGeometry args={[half * 2, half * 2]} />
     </mesh>
   );
 }

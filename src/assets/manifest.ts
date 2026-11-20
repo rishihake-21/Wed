@@ -9,5 +9,10 @@ export const manifest = {
   audio: {
     /** Ambient bansuri bed, looped for the whole experience. Keep total audio under ~3 MB. */
     bed: { src: ['/audio/bed.mp3'], volume: 0.6 },
+    /** One-shot sounds, played from scenes with `playCue` (src/audio/audioManager.ts). */
+    cues: {
+      /** Bride's scene: anklet bells as her figure appears. Placeholder synthesised sound. */
+      anklet: { src: ['/audio/anklet.mp3'], volume: 0.7 },
+    },
   },
 } as const;

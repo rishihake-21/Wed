@@ -4,7 +4,8 @@ import { manifest } from '../assets/manifest';
 import { useAppStore } from '../core/store';
 
 /**
- * Audio for the whole experience: one looping ambient bed, played through Howler (Web Audio).
+ * Audio for the whole experience, played through Howler (Web Audio): one looping ambient bed,
+ * plus short one-shot cues that scenes trigger with `playCue` (see useCueAt).
  *
  * Browsers block sound until a tap, so the flow is:
  *   preloadAudio()  when the gate mounts: starts the download and reports it to three's
@@ -23,8 +24,12 @@ import { useAppStore } from '../core/store';
 const FADE_IN_MS = 1500;
 const FADE_OUT_MS = 350;
 
+export type CueName = keyof typeof manifest.audio.cues;
+
 let bed: Howl | null = null;
 let bedId: number | undefined;
+const cues = new Map<CueName, Howl>();
+let cuePlays = 0;
 let started = false;
 let pauseTimer: number | undefined;
 
@@ -55,32 +60,40 @@ function reconcile(): void {
 
 let unsubscribeStore: (() => void) | undefined;
 
-/** Starts downloading the bed. Safe to call repeatedly. */
-export function preloadAudio(): void {
-  if (bed) return;
-
-  const url = manifest.audio.bed.src[0];
-  DefaultLoadingManager.itemStart(url); // makes drei's useProgress count the audio
+/**
+ * Starts a download and reports it to three's loading manager, so the diya loader counts it.
+ * A missing file must not block the invitation: it warns and carries on silently.
+ */
+function loadHowl(src: readonly string[], options: { loop?: boolean; volume: number }): Howl {
+  const url = src[0];
+  DefaultLoadingManager.itemStart(url);
   let settled = false;
   const settle = () => {
     if (settled) return;
     settled = true;
     DefaultLoadingManager.itemEnd(url);
   };
-
-  bed = new Howl({
-    src: [...manifest.audio.bed.src],
-    loop: true,
-    volume: 0,
+  return new Howl({
+    ...options,
+    src: [...src],
     preload: true,
     onload: settle,
     onloaderror: (_id, error) => {
-      // A missing file must not block the invitation: carry on silently.
       console.warn(`[audio] could not load ${url}:`, error);
       DefaultLoadingManager.itemError(url);
       settle();
     },
   });
+}
+
+/** Starts downloading the bed and the cues. Safe to call repeatedly. */
+export function preloadAudio(): void {
+  if (bed) return;
+
+  bed = loadHowl(manifest.audio.bed.src, { loop: true, volume: 0 });
+  for (const [name, cue] of Object.entries(manifest.audio.cues) as [CueName, { src: readonly string[]; volume: number }][]) {
+    cues.set(name, loadHowl(cue.src, { volume: cue.volume }));
+  }
 
   unsubscribeStore = useAppStore.subscribe((s, prev) => {
     if (s.muted !== prev.muted) reconcile();
@@ -100,13 +113,24 @@ export function startAudio(): void {
   reconcile();
 }
 
-/** One-line status for the dev overlay, e.g. "ctx running · bed playing · vol 0.60". */
+/**
+ * Plays a one-shot cue over the bed. Silent (never queued) when sound is muted, the tab is hidden,
+ * the guest hasn't tapped Enter yet, or the file didn't load, so a cue can never fire late.
+ */
+export function playCue(name: CueName): void {
+  const howl = cues.get(name);
+  if (!howl || !isAudible() || howl.state() !== 'loaded') return;
+  howl.play();
+  cuePlays += 1;
+}
+
+/** One-line status for the dev overlay, e.g. "ctx running · bed loaded playing · vol 0.60 · cues 1". */
 export function audioStatus(): string {
   const ctx = Howler.ctx ? Howler.ctx.state : 'none';
   if (!bed) return `ctx ${ctx} · not loaded`;
   const playing = bedId !== undefined && bed.playing(bedId);
   const volume = bedId !== undefined ? (bed.volume(bedId) as number).toFixed(2) : '-';
-  return `ctx ${ctx} · bed ${bed.state()}${playing ? ' playing' : ''} · vol ${volume}`;
+  return `ctx ${ctx} · bed ${bed.state()}${playing ? ' playing' : ''} · vol ${volume} · cues ${cuePlays}`;
 }
 
 // Dev hot-reload: stop the old module's sound and listeners so edits don't stack up audio.
@@ -116,5 +140,7 @@ if (import.meta.hot) {
     document.removeEventListener('visibilitychange', reconcile);
     unsubscribeStore?.();
     bed?.unload();
+    cues.forEach((howl) => howl.unload());
+    cues.clear();
   });
 }

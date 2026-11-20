@@ -11,7 +11,11 @@ import { FACE_CAMERA, GROOM_SCALE, REVEAL, budgetFor } from '../src/scenes/groom
 import { groveLayout } from '../src/scenes/groom/groveLayout.ts';
 import { ribbonPoints } from '../src/scenes/groom/ribbonPath.ts';
 import { ARRIVAL_YAW, GROOM_POSITION, GROOM_SPOT, roomToScene } from '../src/scenes/groom/stage.ts';
-import { lerpAngle } from '../src/shared/math.ts';
+import { lerpAngle, smoothstep } from '../src/shared/math.ts';
+import { BUDGETS as BRIDE_BUDGETS, POND_SCALE, TIMING as BRIDE_TIMING, ambient as brideAmbient } from '../src/scenes/bride/config.ts';
+import { LOTUS_HEIGHT, LOTUS_REACH, NEAREST_Z, pondLayout } from '../src/scenes/bride/pondLayout.ts';
+import { RIBBON_WIDTH, ribbonPoints as brideRibbonPoints } from '../src/scenes/bride/ribbonPath.ts';
+import { BRIDE_SCENE, BRIDE_SPOT, POND_CENTRE, POND_RADIUS } from '../src/scenes/bride/stage.ts';
 import { basis, dot, halfFovTangents, len, makeCurve, pose, SCREENS, sub } from './lib/spline.mjs';
 
 const PHONE = 0; // SCREENS[0]: 390x844
@@ -23,6 +27,8 @@ const MIN_RIBBON_CLEARANCE = 1.5; // the ribbon is thin and glows, but must not 
 // where the hold begins, far off and only just fading in; he grows to about 28% by the name reveal.
 const MIN_PHONE_HEIGHT = 0.16;
 const MIN_PHONE_HEIGHT_AT_NAME = 0.25; // ... and at p = 0.5, when the name is revealed
+const MIN_LOTUS_CLEARANCE = 1.8; // metres from the camera to a lotus's cylinder
+const MIN_BRIDE_RIBBON_EDGE = 1.2; // ... and to the edge of the Paithani strip
 const NAME_BLOCK_TOP_NDC = -0.2; // top of the overlay's name block on a phone (about 40% up from the bottom)
 
 const N = 400;
@@ -136,6 +142,54 @@ function groomClearance() {
   console.log('  closest the camera gets (true spline, metres): ' + Object.entries(closest).map(([k, d]) => `${k} ${d.toFixed(1)}`).join(', '));
 }
 
-for (const key of ['groom']) checkFraming(key);
+// ---------------------------------------------------------------------------- bride clearance
+function brideClearance() {
+  const scene = BRIDE_SCENE;
+  const [hx, , hz] = BRIDE_SPOT;
+  const curve = makeCurve(brideRibbonPoints());
+  const closest = {};
+  const note = (tier, kind, d) => { const k = `${tier}/${kind}`; closest[k] = Math.min(closest[k] ?? Infinity, d); };
+  const minLotuses = { high: 10, medium: 7, low: 4 };
+
+  for (const tier of ['high', 'medium', 'low']) {
+    const budget = BRIDE_BUDGETS[tier];
+    const { lotuses, pads } = pondLayout(budget);
+    assert.ok(lotuses.length >= minLotuses[tier], `bride ${tier}: only ${lotuses.length} lotuses survived the camera clearance`);
+    assert.ok(pads.length >= Math.floor(budget.pads * 0.6), `bride ${tier}: only ${pads.length} of ${budget.pads} pads were placed`);
+    // Nothing may be within the fog's reach of the camera when the scene mounts one segment further back.
+    for (const it of [...lotuses, ...pads]) {
+      assert.ok(it.z + it.scale * LOTUS_REACH <= NEAREST_Z + 1e-9, `bride ${tier}: something floats at z ${it.z.toFixed(1)}, too near the mount`);
+    }
+    for (let k = 0; k <= N; k++) {
+      const p = k / N, ps = scenePose(scene, p), [cx, cy, cz] = ps.local;
+      for (const l of lotuses) {
+        // A lotus is a short cylinder standing on the water.
+        const dh = Math.max(0, Math.hypot(cx - l.x, cz - l.z) - l.scale * LOTUS_REACH);
+        const dv = Math.max(0, cy - l.scale * LOTUS_HEIGHT);
+        note(tier, 'lotus', Math.hypot(dh, dv));
+      }
+      if (tier !== 'high') continue;
+      const unfurl = smoothstep(BRIDE_TIMING.unfurl[0], BRIDE_TIMING.unfurl[1], p);
+      const visible = brideAmbient(p) > 0.05 ? Math.min(1, unfurl * 1.06) : 0;
+      for (let s = 0; s <= 240; s++) {
+        const u = s / 240;
+        if (u > visible) break;
+        const [rx, ry, rz] = curve(u);
+        // The strip is RIBBON_WIDTH wide; measure to its edge, not its middle.
+        note('high', 'ribbon', Math.hypot(cx - (hx + rx), cy - ry, cz - (hz + rz)) - RIBBON_WIDTH / 2);
+      }
+    }
+  }
+  // The water stops short of where the camera starts, so it never shows beside the previous scene.
+  assert.ok(POND_CENTRE[1] + POND_RADIUS <= NEAREST_Z, 'the pond reaches too close to the camera start');
+  for (const [k, d] of Object.entries(closest)) {
+    const need = k.endsWith('ribbon') ? MIN_BRIDE_RIBBON_EDGE : MIN_LOTUS_CLEARANCE;
+    assert.ok(d >= need, `bride ${k}: the camera passes ${d.toFixed(2)} m away (minimum ${need})`);
+  }
+  console.log(`  pond scale x${POND_SCALE.toFixed(2)}; closest the camera gets (true spline, metres): ` + Object.entries(closest).map(([k, d]) => `${k} ${d.toFixed(1)}`).join(', '));
+}
+
+for (const key of ['groom', 'bride']) checkFraming(key);
 groomClearance();
+brideClearance();
 console.log('hero checks passed');

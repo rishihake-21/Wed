@@ -1,13 +1,13 @@
 import { useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Color, ShaderMaterial } from 'three';
-import type { QualityTier, SceneProgress } from '../../core/types';
-import { GLSL_BILLBOARD, GLSL_NOISE } from '../../shared/glsl';
-import { createInstanced, seededRandom, useDisposable } from '../../shared/particles';
-import { sceneFade } from '../../shared/sceneFade';
-import { SKY } from '../../shared/sky';
-import { byTier } from '../../shared/tier';
-import { colors } from '../../theme/tokens';
+import type { QualityTier, SceneProgress } from '../core/types';
+import { GLSL_BILLBOARD, GLSL_NOISE } from './glsl';
+import { createInstanced, seededRandom, useDisposable } from './particles';
+import { sceneFade } from './sceneFade';
+import { SKY } from './sky';
+import { byTier } from './tier';
+import { colors } from '../theme/tokens';
 
 const PUFF_COUNT = { high: 16, medium: 10, low: 5 } as const;
 

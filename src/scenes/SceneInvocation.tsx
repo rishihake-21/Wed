@@ -1,8 +1,8 @@
 import type { SceneProps, Vec3 } from '../core/types';
 import { Fireflies } from '../shared/Fireflies';
+import { LowMist } from '../shared/LowMist';
+import { Water } from '../shared/Water';
 import { FloatingDiyas } from './invocation/FloatingDiyas';
-import { LowMist } from './invocation/LowMist';
-import { YamunaWater } from './invocation/YamunaWater';
 
 /** Where the fireflies wander: over the water and the near bank, around the camera's path. */
 const FIREFLY_BOX: readonly [Vec3, Vec3] = [
@@ -22,7 +22,7 @@ export function SceneInvocation({ progress, quality }: SceneProps) {
 
   return (
     <group>
-      <YamunaWater progress={progress} quality={quality} />
+      <Water progress={progress} quality={quality} />
       <FloatingDiyas progress={progress} quality={quality} />
       <Fireflies quality={quality} box={FIREFLY_BOX} progress={progress} />
       <LowMist progress={progress} quality={quality} />

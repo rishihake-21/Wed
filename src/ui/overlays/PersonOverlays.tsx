@@ -7,3 +7,7 @@ import { PERSON_TIMING } from './personTiming';
 export function GroomOverlay() {
   return <NameReveal person={content.couple.groom} progress={SCENE_PROGRESS[sceneIndexOf('groom')]} timing={PERSON_TIMING} />;
 }
+
+export function BrideOverlay() {
+  return <NameReveal person={content.couple.bride} progress={SCENE_PROGRESS[sceneIndexOf('bride')]} timing={PERSON_TIMING} />;
+}
